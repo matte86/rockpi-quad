@@ -130,6 +130,8 @@ def get_disk_info(cache={}):
         info = {}
         cmd = "df -h | awk '$NF==\"/\"{printf \"%s\", $5}'"
         info['root'] = check_output(cmd)
+        cmd = "df -h | awk '$1==\"/dev/md0\"{printf \"%s\", $5}'"
+        info['raid'] = check_output(cmd)
         for x in conf['disk']:
             cmd = "df -Bg | awk '$1==\"/dev/{}\" {{printf \"%s\", $5}}'".format(x)
             info[x] = check_output(cmd)
