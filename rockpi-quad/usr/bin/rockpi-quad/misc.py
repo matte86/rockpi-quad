@@ -7,6 +7,7 @@ import multiprocessing as mp
 import traceback
 
 import gpiod
+from gpiod.line import Direction, Value
 from configparser import ConfigParser
 from collections import defaultdict, OrderedDict
 
@@ -99,15 +100,25 @@ def read_key(pattern, size):
     LINE_NUMBER = os.environ['BUTTON_LINE']
 
     s = ''
-    chip = gpiod.Chip(str(CHIP_NAME))
-    line = chip.get_line(int(LINE_NUMBER))
-    line.request(consumer='hat_button', type=gpiod.LINE_REQ_DIR_OUT)
-    line.set_value(1)
+    chip_path = str(CHIP_NAME)
+    line_num = int(LINE_NUMBER)
+
+    config = {
+        line_num: gpiod.LineSettings(
+            direction=Direction.INPUT  # Corrected to INPUT for button reading
+        )
+    }
+    request = gpiod.request_lines(
+        chip_path,
+        consumer='hat_button',
+        config=config
+    )
 
     while True:
-        s = s[-size:] + str(line.get_value())
+        s = s[-size:] + str(request.get_value(line_num).value)  # Use .value to get 0 or 1
         for t, p in pattern.items():
             if p.match(s):
+                request.release()
                 return t
         time.sleep(0.1)
 
@@ -166,12 +177,28 @@ def get_func(key):
 
 
 def disk_turn_on():
-    line1 = gpiod.Chip(os.environ['SATA_CHIP']).get_line(int(os.environ['SATA_LINE_1']))
-    line1.request(consumer='SATA_LINE_1', type=gpiod.LINE_REQ_DIR_OUT)
-    line1.set_value(1)
-    line2 = gpiod.Chip(os.environ['SATA_CHIP']).get_line(int(os.environ['SATA_LINE_2']))
-    line2.request(consumer='SATA_LINE_2', type=gpiod.LINE_REQ_DIR_OUT)
-    line2.set_value(1)
+    chip_path = os.environ['SATA_CHIP']
+    line1_num = int(os.environ['SATA_LINE_1'])
+    line2_num = int(os.environ['SATA_LINE_2'])
+
+    config = {
+        line1_num: gpiod.LineSettings(
+            direction=Direction.OUTPUT,
+            output_value=Value(1)
+        ),
+        line2_num: gpiod.LineSettings(
+            direction=Direction.OUTPUT,
+            output_value=Value(1)
+        )
+    }
+
+    global sata_request  # Keep request alive globally if needed for the service lifetime
+    sata_request = gpiod.request_lines(
+        chip_path,
+        consumer='disk_turn_on',
+        config=config
+    )
+    # Do not release, as this is persistent power-on
 
 
 conf = {'disk': [], 'idx': mp.Value('d', -1), 'run': mp.Value('d', 1)}

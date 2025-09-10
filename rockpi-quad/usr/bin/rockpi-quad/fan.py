@@ -50,17 +50,20 @@ class Pwm:
 
 
 class Gpio:
-
     def tr(self):
         while True:
-            self.line.set_value(1)
+            self.request.set_value(1)
             time.sleep(self.value[0])
-            self.line.set_value(0)
+            self.request.set_value(0)
             time.sleep(self.value[1])
 
     def __init__(self, period_s):
-        self.line = gpiod.Chip(os.environ['FAN_CHIP']).get_line(int(os.environ['FAN_LINE']))
-        self.line.request(consumer='fan', type=gpiod.LINE_REQ_DIR_OUT)
+        chip = gpiod.Chip(os.environ['FAN_CHIP'])
+        line = chip.get_line(int(os.environ['FAN_LINE']))
+        config = gpiod.LineRequest()
+        config.consumer = 'fan'
+        config.request_type = gpiod.LineRequest.DIRECTION_OUTPUT
+        self.request = line.request(config, default_vals=[0])
         self.value = [period_s / 2, period_s / 2]
         self.period_s = period_s
         self.thread = threading.Thread(target=self.tr, daemon=True)
